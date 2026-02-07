@@ -8,14 +8,14 @@
         #sidebar { width: 220px; background: #000; border-right: 2px solid var(--purdue-gold); padding: 20px; }
         #main { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .track { display: flex; gap: 10px; background: #222; padding: 15px; border-radius: 10px; margin: 10px 0; }
-        .slot { width: 80px; height: 110px; border: 2px dashed #555; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: bold; }
+        .slot { width: 80px; height: 110px; border: 2px dashed #555; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
         .filled-tradition { background: var(--purdue-gold); color: black; border: none; }
         .filled-construction { background: var(--iu-crimson); color: white; border: none; }
         button { padding: 10px; margin: 5px; cursor: pointer; border-radius: 5px; border: none; font-weight: bold; }
         .gold-btn { background: var(--purdue-gold); color: black; }
-        .policy-card { background: white; color: black; padding: 20px; margin: 10px; display: inline-block; cursor: pointer; border-radius: 5px; width: 100px; font-weight: bold; }
+        .policy-card { background: white; color: black; padding: 20px; margin: 10px; display: inline-block; cursor: pointer; border-radius: 5px; width: 80px; font-weight: bold; }
         #voteUI { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
-        #status { background: var(--purdue-gold); color: black; padding: 10px; margin-bottom: 10px; font-weight: bold; display: none; border-radius: 5px; }
+        #status { background: var(--purdue-gold); color: black; padding: 10px; margin-bottom: 10px; font-weight: bold; display: none; border-radius: 5px; width: 80%; }
     </style>
 </head>
 <body>
@@ -30,23 +30,22 @@
 
     <div id="setup">
         <h1>🔔 Under the Bell Tower</h1>
-        <input id="username" placeholder="Enter Name" style="padding: 10px;">
+        <input id="username" placeholder="Name">
         <button class="gold-btn" onclick="join()">Enter Lobby</button>
     </div>
 
     <div id="gameUI" style="display:none">
-        <h3>Tradition Track (Boilers win at 5)</h3>
         <div class="track" id="traditionTrack"></div>
-        <h3>Construction Track (Hoosiers win at 6)</h3>
         <div class="track" id="constructionTrack"></div>
 
-        <p id="roleSecret" style="color:var(--purdue-gold); font-size: 1.5rem; margin-top: 20px;">Role Hidden</p>
-        <button class="gold-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">HOLD TO REVEAL IDENTITY</button>
+        <p id="roleSecret" style="color:var(--purdue-gold); font-size: 1.2rem;">Role Hidden</p>
+        <button class="gold-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">HOLD TO REVEAL</button>
 
-        <div style="margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;">
-            <input id="nominee" placeholder="Nominate VP Name">
-            <button class="gold-btn" onclick="nominate()">Nominate VP</button>
-            <button id="drawBtn" onclick="drawCards()" style="background:#555; color:white; display:none;">President: Draw 3</button>
+        <div id="electionBox" style="margin-top: 30px; border-top: 1px solid #444; padding-top: 20px;">
+            <input id="nominee" placeholder="Nominate VP">
+            <button class="gold-btn" onclick="nominate()">Nominate</button>
+            <br>
+            <button id="drawBtn" onclick="drawCards()" style="background:white; color:black; display:none; margin-top:15px; border: 3px solid var(--purdue-gold);">PRESIDENT: DRAW 3 POLICIES</button>
         </div>
 
         <div id="legisArea" style="display:none; background:#333; padding: 20px; margin-top: 20px; border-radius: 10px;">
@@ -56,25 +55,27 @@
     </div>
 
     <div id="lobbyControls" style="display:none; margin-top: 20px;">
-        <button class="gold-btn" onclick="startGame()">START SEMESTER (5+ Players)</button>
+        <button class="gold-btn" onclick="startGame()">START GAME</button>
     </div>
 </div>
 
 <div id="voteUI">
-    <h2 id="voteTitle">Election Time</h2>
-    <button class="gold-btn" onclick="castVote('Boiler Up!')" style="font-size: 1.5rem; padding: 20px;">🚂 Boiler Up! (Yes)</button>
-    <button style="background:var(--iu-crimson); color:white; font-size: 1.5rem; padding: 20px;" onclick="castVote('Hammer Down!')">🔨 Hammer Down! (No)</button>
+    <h2 id="voteTitle"></h2>
+    <button class="gold-btn" onclick="castVote('Boiler Up!')" style="font-size: 1.5rem;">🚂 Boiler Up!</button>
+    <button style="background:var(--iu-crimson); color:white; font-size: 1.5rem;" onclick="castVote('Hammer Down!')">🔨 Hammer Down!</button>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
-    let myName = "", myRole = "";
+    let myName = "", myRole = "", myId = "";
+
+    socket.on('connect', () => { myId = socket.id; });
 
     function showStatus(msg) {
         const s = document.getElementById('status');
         s.innerText = msg; s.style.display = 'block';
-        setTimeout(() => s.style.display = 'none', 4000);
+        setTimeout(() => { s.style.display = 'none'; }, 5000);
     }
 
     function join() {
@@ -89,7 +90,7 @@
     function startGame() { socket.emit('startGame'); }
 
     socket.on('updatePlayerList', (p) => {
-        document.getElementById('playerList').innerHTML = p.map(x => `<div style="padding:5px">🚂 ${x.name}</div>`).join('');
+        document.getElementById('playerList').innerHTML = p.map(x => `<div>🚂 ${x.name}</div>`).join('');
     });
 
     socket.on('assignRole', (role) => {
@@ -108,7 +109,7 @@
     }
 
     socket.on('showVote', (data) => {
-        document.getElementById('voteTitle').innerText = `Elect President ${data.president} & VP ${data.vp}?`;
+        document.getElementById('voteTitle').innerText = `Elect ${data.president} & ${data.vp}?`;
         document.getElementById('voteUI').style.display = 'flex';
     });
 
@@ -117,13 +118,23 @@
         document.getElementById('voteUI').style.display = 'none';
     }
 
-    socket.on('voteResult', (d) => showStatus(`${d.name}: ${d.choice}`));
+    socket.on('electionPassed', (data) => {
+        showStatus(data.msg);
+        if(myId === data.presId) {
+            document.getElementById('drawBtn').style.display = 'inline-block';
+        }
+    });
 
-    function drawCards() { socket.emit('drawPolicies'); }
+    socket.on('electionFailed', (msg) => { showStatus(msg); });
+
+    function drawCards() { 
+        socket.emit('drawPolicies'); 
+        document.getElementById('drawBtn').style.display = 'none';
+    }
 
     socket.on('presidentHand', (hand) => {
         document.getElementById('legisArea').style.display = 'block';
-        document.getElementById('legisTitle').innerText = "President: Discard ONE";
+        document.getElementById('legisTitle').innerText = "President: Discard 1 Card";
         const area = document.getElementById('policyButtons');
         area.innerHTML = '';
         hand.forEach((p, i) => {
@@ -131,9 +142,8 @@
             card.className = 'policy-card';
             card.innerText = p;
             card.onclick = () => {
-                let remaining = [...hand];
-                remaining.splice(i, 1);
-                socket.emit('presidentDiscard', remaining);
+                let rem = [...hand]; rem.splice(i, 1);
+                socket.emit('presidentDiscard', rem);
                 document.getElementById('legisArea').style.display = 'none';
             };
             area.appendChild(card);
@@ -142,7 +152,7 @@
 
     socket.on('vpHand', (hand) => {
         document.getElementById('legisArea').style.display = 'block';
-        document.getElementById('legisTitle').innerText = "VP: Enact ONE";
+        document.getElementById('legisTitle').innerText = "VP: Enact 1 Policy";
         document.getElementById('policyButtons').innerHTML = hand.map(p => 
             `<div class="policy-card" onclick="enact('${p}')">${p}</div>`).join('');
     });
@@ -159,21 +169,17 @@
         for(let i=0; i<5; i++){
             const p = data.tradition[i];
             tTrack.innerHTML += `<div class="slot ${p?'filled-tradition':''}">
-                ${p ? `<span>Tradition</span><br><small>${p.pres}/${p.vp}</small>` : 'Empty'}
-            </div>`;
+                ${p ? `TRADITION<br><small>${p.pres}/${p.vp}</small>` : 'Empty'}</div>`;
         }
         for(let i=0; i<6; i++){
             const p = data.construction[i];
             cTrack.innerHTML += `<div class="slot ${p?'filled-construction':''}">
-                ${p ? `<span>Construction</span><br><small>${p.pres}/${p.vp}</small>` : 'Empty'}
-            </div>`;
+                ${p ? `CONSTRUCT<br><small>${p.pres}/${p.vp}</small>` : 'Empty'}</div>`;
         }
-        document.getElementById('drawBtn').style.display = 'inline-block';
     }
 
     socket.on('policyUpdated', (data) => updateBoard(data));
     socket.on('statusMsg', (m) => showStatus(m));
-    socket.on('errorMsg', (m) => showStatus(m));
 </script>
 </body>
 </html>

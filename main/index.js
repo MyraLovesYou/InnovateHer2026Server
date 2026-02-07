@@ -9,8 +9,7 @@ const io = new Server(server);
 let players = [];
 let deck = [];
 let enactedPolicies = { tradition: [], construction: [] };
-let lastPresident = null;
-let lastVP = null;
+let votes = {}; 
 let currentPres = null;
 let currentVP = null;
 
@@ -28,49 +27,56 @@ io.on('connection', (socket) => {
     });
 
     socket.on('startGame', () => {
-        if (players.length < 5) {
-            socket.emit('errorMsg', "Official rules require 5+ players!");
-            return;
-        }
+        if (players.length < 5) return socket.emit('errorMsg', "Need 5+ players!");
         createDeck();
         enactedPolicies = { tradition: [], construction: [] };
         let shuffled = [...players].sort(() => 0.5 - Math.random());
-        
-        const bison = shuffled[0];
-        const spy = shuffled[1];
-
-        players.forEach(p => {
-            if (p.id === bison.id) p.role = "THE BISON 🦬";
-            else if (p.id === spy.id) p.role = "HOOSIER SPY 🚩";
+        players.forEach((p, i) => {
+            if (p.id === shuffled[0].id) p.role = "THE BISON 🦬";
+            else if (p.id === shuffled[1].id) p.role = "HOOSIER SPY 🚩";
             else p.role = "BOILERMAKER 🚂";
             io.to(p.id).emit('assignRole', p.role);
         });
         io.emit('gameStarted');
     });
 
+    // Phase 1: Nomination
     socket.on('nominateVP', (vpName) => {
         const nominee = players.find(p => p.name.toLowerCase() === vpName.toLowerCase());
         const president = players.find(p => p.id === socket.id);
-        if (nominee) {
-            // Term Limit Check
-            if (nominee.name === lastVP || (players.length > 5 && nominee.name === lastPresident)) {
-                return socket.emit('errorMsg', nominee.name + " is term-limited!");
-            }
+        
+        if (nominee && president) {
             currentPres = president;
             currentVP = nominee;
+            votes = {}; // Reset votes for new election
             io.emit('showVote', { president: president.name, vp: nominee.name });
         }
     });
 
+    // Phase 2: Voting
     socket.on('submitVote', (voteData) => {
-        io.emit('voteResult', voteData);
+        votes[socket.id] = voteData.choice;
+        io.emit('statusMsg', `${voteData.name} has cast their ballot.`);
+
+        // Check if all players have voted
+        if (Object.keys(votes).length === players.length) {
+            const yesVotes = Object.values(votes).filter(v => v === 'Boiler Up!').length;
+            const noVotes = players.length - yesVotes;
+
+            if (yesVotes > noVotes) {
+                io.emit('electionPassed', { 
+                    msg: `Election Passed! ${yesVotes}-${noVotes}. President ${currentPres.name}, draw your policies.`,
+                    presId: currentPres.id 
+                });
+            } else {
+                io.emit('electionFailed', `Election Failed ${yesVotes}-${noVotes}. The Presidency moves on.`);
+            }
+        }
     });
 
+    // Phase 3: Legislative Session
     socket.on('drawPolicies', () => {
-        if (enactedPolicies.construction.length >= 3 && currentVP.role === "THE BISON 🦬") {
-            io.emit('statusMsg', "HOOSIERS WIN: The Bison was elected Student Body VP!");
-            return;
-        }
+        if (socket.id !== currentPres.id) return;
         if (deck.length < 3) createDeck();
         const hand = deck.splice(0, 3);
         socket.emit('presidentHand', hand);
@@ -84,14 +90,7 @@ io.on('connection', (socket) => {
         const policyObj = { type: policy, pres: currentPres.name, vp: currentVP.name };
         if (policy === "Tradition") enactedPolicies.tradition.push(policyObj);
         else enactedPolicies.construction.push(policyObj);
-        
-        lastPresident = currentPres.name;
-        lastVP = currentVP.name;
-
         io.emit('policyUpdated', enactedPolicies);
-        
-        if (enactedPolicies.tradition.length >= 5) io.emit('statusMsg', "BOILERMAKERS WIN!");
-        else if (enactedPolicies.construction.length >= 6) io.emit('statusMsg', "HOOSIERS WIN!");
     });
 
     socket.on('disconnect', () => {
