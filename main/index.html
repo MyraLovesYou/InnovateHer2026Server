@@ -6,21 +6,23 @@
     <title>Secret Crimson</title>
     <style>
         :root { --purdue-gold: #CEB888; --purdue-black: #000000; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
-        .container { background: #333; max-width: 400px; margin: auto; padding: 20px; border-radius: 15px; border: 2px solid var(--purdue-gold); }
+        body { font-family: 'Segoe UI', sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
+        .container { background: #333; max-width: 400px; margin: auto; padding: 20px; border-radius: 15px; border: 2px solid var(--purdue-gold); position: relative; }
         button { padding: 12px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.3s; }
         .gold-btn { background: var(--purdue-gold); color: black; width: 80%; }
-        .gold-btn:hover { background: #e2ce9d; }
         input { padding: 10px; border-radius: 5px; border: none; width: 70%; margin-bottom: 10px; }
         .score-box { display: flex; justify-content: space-around; background: #444; padding: 10px; border-radius: 10px; margin: 15px 0; }
-        #roleSecret { font-size: 1.8rem; color: var(--purdue-gold); min-height: 40px; }
+        #status { background: var(--purdue-gold); color: black; padding: 5px; border-radius: 5px; margin-bottom: 10px; display: none; font-size: 0.9rem; font-weight: bold;}
+        #roleSecret { font-size: 1.5rem; color: var(--purdue-gold); margin: 10px 0; }
         .policy-card { background: white; color: black; padding: 15px; margin: 5px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .vote-log { background: #111; padding: 10px; border-radius: 5px; max-height: 100px; overflow-y: auto; font-size: 0.8rem; margin-top: 10px;}
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>🚂 Secret Crimson</h1>
+        <div id="status"></div>
 
         <div id="setup">
             <input id="username" placeholder="Enter Purdue ID Name">
@@ -49,16 +51,18 @@
             <div id="actionArea">
                 <input id="nominee" placeholder="Nominate President">
                 <button class="gold-btn" onclick="sendNomination()">Call for Vote</button>
-                <button style="background:#555; color:white;" onclick="drawCards()">Draw Policies</button>
+                <button style="background:#555; color:white; width: 80%;" onclick="drawCards()">Draw Policies</button>
             </div>
 
             <div id="policyArea" style="display:none;">
                 <h4>Pick a Policy to Enact:</h4>
                 <div id="policyButtons"></div>
             </div>
+
+            <div class="vote-log" id="voteLog">Recent Votes will appear here...</div>
         </div>
 
-        <div id="voteUI" style="display:none; background:rgba(0,0,0,0.9); position:fixed; top:0; left:0; width:100%; height:100%; padding-top:100px;">
+        <div id="voteUI" style="display:none; background:rgba(0,0,0,0.95); position:fixed; top:0; left:0; width:100%; height:100%; padding-top:100px; z-index: 100;">
             <h2 id="voteTitle"></h2>
             <button class="gold-btn" onclick="castVote('Boiler Up!')">BOILER UP (Yes)</button>
             <button style="background:red; color:white;" onclick="castVote('Hammer Down!')">HAMMER DOWN (No)</button>
@@ -70,12 +74,20 @@
         const socket = io();
         let myName = "", myRole = "";
 
+        function showStatus(msg, duration = 3000) {
+            const el = document.getElementById('status');
+            el.innerText = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, duration);
+        }
+
         function join() {
             myName = document.getElementById('username').value;
             if(!myName) return;
             socket.emit('joinGame', myName);
             document.getElementById('setup').style.display = 'none';
             document.getElementById('lobby').style.display = 'block';
+            showStatus("Joined campus lobby.");
         }
 
         function startGame() { socket.emit('startGame'); }
@@ -88,6 +100,7 @@
             myRole = role;
             document.getElementById('lobby').style.display = 'none';
             document.getElementById('gameUI').style.display = 'block';
+            showStatus("The semester has begun!");
         });
 
         function reveal() { document.getElementById('roleSecret').innerText = myRole; }
@@ -97,6 +110,8 @@
             const n = document.getElementById('nominee').value;
             if(n) socket.emit('startVote', n);
         }
+
+        socket.on('errorMsg', (msg) => { showStatus(msg); });
 
         socket.on('showVote', (name) => {
             document.getElementById('voteTitle').innerText = "Elect " + name + "?";
@@ -109,7 +124,8 @@
         }
 
         socket.on('voteResult', (d) => {
-            alert(d.name + " voted " + d.choice);
+            const log = document.getElementById('voteLog');
+            log.innerHTML = `<div><b>${d.name}:</b> ${d.choice}</div>` + log.innerHTML;
         });
 
         function drawCards() { socket.emit('drawPolicies'); }
@@ -128,6 +144,7 @@
         socket.on('policyUpdated', (data) => {
             document.getElementById('tScore').innerText = data.traditionScore;
             document.getElementById('cScore').innerText = data.constructionScore;
+            showStatus("New Policy: " + data.lastPolicy);
         });
     </script>
 </body>

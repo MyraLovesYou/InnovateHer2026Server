@@ -11,7 +11,6 @@ let deck = [];
 let scores = { tradition: 0, construction: 0 };
 
 function createDeck() {
-    // Standard ratio: 6 Tradition (Good), 11 Construction (Bad)
     deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")];
     deck.sort(() => 0.5 - Math.random());
 }
@@ -43,7 +42,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('startVote', (nominatedName) => {
-        io.emit('showVote', nominatedName);
+        // Validation: Check if the name exists in our players array
+        const exists = players.some(p => p.name.toLowerCase() === nominatedName.toLowerCase());
+        if (exists) {
+            io.emit('showVote', nominatedName);
+        } else {
+            socket.emit('errorMsg', "Student not found on campus!");
+        }
     });
 
     socket.on('submitVote', (voteData) => {
