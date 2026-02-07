@@ -1,53 +1,105 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secret Crimson</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; min-width: 300px; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; }
+        .boiler-btn { background: #CEB888; color: black; } /* Purdue Gold */
+        .hammer-btn { background: #000000; color: white; } /* Purdue Black */
+        #roleSecret { color: #d32f2f; font-size: 1.5rem; }
+    </style>
+</head>
 <body>
-    <h1>Under the Bell Tower</h1>
-    <div id="setup">
-        <input id="username" placeholder="Enter Name">
-        <button onclick="join()">Join Lobby</button>
-    </div>
 
-    <div id="lobby" style="display:none">
-        <h3>Players in Lobby:</h3>
-        <ul id="playerList"></ul>
+    <div class="card">
+        <h1>🚂 Secret Crimson</h1>
+
+        <div id="setup">
+            <input id="username" placeholder="Enter Purdue ID Name" style="padding:10px;">
+            <button class="boiler-btn" onclick="join()">Join Lobby</button>
+        </div>
+
+        <div id="lobby" style="display:none">
+            <h3>Students in Lobby:</h3>
+            <ul id="playerList" style="list-style:none; padding:0;"></ul>
+            <button class="boiler-btn" onclick="startGame()">START GAME</button>
+        </div>
+
+        <div id="gameUI" style="display:none">
+            <h2 id="roleSecret">Role is Hidden</h2>
+            <button class="boiler-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">
+                HOLD TO REVEAL ROLE
+            </button>
+            <hr>
+            <h3>Nominate for President:</h3>
+            <input id="nominee" placeholder="Player Name">
+            <button onclick="sendNomination()">Call Vote</button>
+        </div>
+
+        <div id="voteUI" style="display:none; border: 2px solid black; margin-top: 20px; padding: 10px;">
+            <h3 id="voteTitle"></h3>
+            <button class="boiler-btn" onclick="castVote('Boiler Up!')">Boiler Up (Yes)</button>
+            <button class="hammer-btn" onclick="castVote('Hammer Down!')">Hammer Down (No)</button>
+        </div>
+
+        <div id="results"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        let myName = "";
+        let myRole = "";
 
         function join() {
-            const name = document.getElementById('username').value;
-            socket.emit('joinGame', name);
+            myName = document.getElementById('username').value;
+            if(!myName) return alert("Enter a name!");
+            socket.emit('joinGame', myName);
             document.getElementById('setup').style.display = 'none';
             document.getElementById('lobby').style.display = 'block';
         }
 
+        function startGame() { socket.emit('startGame'); }
+
         socket.on('updatePlayerList', (players) => {
             const list = document.getElementById('playerList');
-            list.innerHTML = players.map(p => `<li>${p.name}</li>`).join('');
+            list.innerHTML = players.map(p => `<li>✅ ${p.name}</li>`).join('');
         });
-        let myRole = "Unknown";
 
-    function startGame() {
-        socket.emit('startGame');
-    }
+        socket.on('assignRole', (role) => {
+            myRole = role;
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('gameUI').style.display = 'block';
+        });
 
-    socket.on('assignRole', (role) => {
-        myRole = role;
-        document.getElementById('lobby').style.display = 'none';
-        document.getElementById('gameUI').style.display = 'block';
-    });
+        // REVEAL LOGIC
+        function reveal() { document.getElementById('roleSecret').innerText = myRole; }
+        function hide() { document.getElementById('roleSecret').innerText = "Role is Hidden"; }
 
-    // Reveal/Hide logic for "Secret" info
-    function reveal() { document.getElementById('roleSecret').innerText = myRole; }
-    function hide() { document.getElementById('roleSecret').innerText = "Secret Role"; }
+        // VOTING LOGIC
+        function sendNomination() {
+            const name = document.getElementById('nominee').value;
+            socket.emit('startVote', name);
+        }
+
+        socket.on('showVote', (name) => {
+            document.getElementById('voteTitle').innerText = "Elect " + name + " as President?";
+            document.getElementById('voteUI').style.display = 'block';
+        });
+
+        function castVote(choice) {
+            socket.emit('submitVote', { name: myName, choice: choice });
+            document.getElementById('voteUI').style.display = 'none';
+        }
+
+        socket.on('voteResult', (data) => {
+            const res = document.getElementById('results');
+            res.innerHTML += `<p><strong>${data.name}</strong> voted: ${data.choice}</p>`;
+        });
     </script>
-    <div id="gameUI" style="display:none">
-        <h2 id="roleSecret">Hold to Reveal Role</h2>
-        <button onmousedown="reveal()" onmouseup="hide()">REVEAL ROLE</button>
-        <hr>
-        <button id="startBtn" onclick="startGame()">START GAME (Host Only)</button>
-    </div>
 </body>
 </html>
