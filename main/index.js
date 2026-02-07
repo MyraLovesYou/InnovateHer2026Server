@@ -7,14 +7,20 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 let players = [];
+let deck = [];
+let scores = { tradition: 0, construction: 0 };
+
+function createDeck() {
+    // Standard ratio: 6 Tradition (Good), 11 Construction (Bad)
+    deck = [...Array(6).fill("Tradition"), ...Array(11).fill("Construction")];
+    deck.sort(() => 0.5 - Math.random());
+}
 
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/index.html');
 });
 
 io.on('connection', (socket) => {
-    console.log('Student connected:', socket.id);
-
     socket.on('joinGame', (name) => {
         const newPlayer = { id: socket.id, name: name, role: 'Unassigned' };
         players.push(newPlayer);
@@ -23,8 +29,9 @@ io.on('connection', (socket) => {
 
     socket.on('startGame', () => {
         if (players.length < 2) return;
+        createDeck();
+        scores = { tradition: 0, construction: 0 };
         
-        // Assign Roles
         let shuffled = [...players].sort(() => 0.5 - Math.random());
         const spyId = shuffled[0].id;
 
@@ -32,16 +39,32 @@ io.on('connection', (socket) => {
             p.role = (p.id === spyId) ? "IU SPY 🚩" : "BOILERMAKER 🚂";
             io.to(p.id).emit('assignRole', p.role);
         });
+        io.emit('gameStarted');
     });
 
-    // VOTING MECHANIC
     socket.on('startVote', (nominatedName) => {
         io.emit('showVote', nominatedName);
     });
 
     socket.on('submitVote', (voteData) => {
-        // Broadcast the result to everyone
-        io.emit('voteResult', { name: voteData.name, choice: voteData.choice });
+        io.emit('voteResult', voteData);
+    });
+
+    socket.on('drawPolicies', () => {
+        if (deck.length < 3) createDeck();
+        const hand = deck.splice(0, 3);
+        socket.emit('policyHand', hand);
+    });
+
+    socket.on('enactPolicy', (policy) => {
+        if (policy === "Tradition") scores.tradition++;
+        else scores.construction++;
+        
+        io.emit('policyUpdated', { 
+            traditionScore: scores.tradition, 
+            constructionScore: scores.construction, 
+            lastPolicy: policy 
+        });
     });
 
     socket.on('disconnect', () => {

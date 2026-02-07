@@ -5,59 +5,74 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secret Crimson</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; min-width: 300px; }
-        button { padding: 10px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; }
-        .boiler-btn { background: #CEB888; color: black; } /* Purdue Gold */
-        .hammer-btn { background: #000000; color: white; } /* Purdue Black */
-        #roleSecret { color: #d32f2f; font-size: 1.5rem; }
+        :root { --purdue-gold: #CEB888; --purdue-black: #000000; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #222; color: white; text-align: center; padding: 20px; }
+        .container { background: #333; max-width: 400px; margin: auto; padding: 20px; border-radius: 15px; border: 2px solid var(--purdue-gold); }
+        button { padding: 12px 20px; margin: 10px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .gold-btn { background: var(--purdue-gold); color: black; width: 80%; }
+        .gold-btn:hover { background: #e2ce9d; }
+        input { padding: 10px; border-radius: 5px; border: none; width: 70%; margin-bottom: 10px; }
+        .score-box { display: flex; justify-content: space-around; background: #444; padding: 10px; border-radius: 10px; margin: 15px 0; }
+        #roleSecret { font-size: 1.8rem; color: var(--purdue-gold); min-height: 40px; }
+        .policy-card { background: white; color: black; padding: 15px; margin: 5px; border-radius: 5px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="card">
+    <div class="container">
         <h1>🚂 Secret Crimson</h1>
 
         <div id="setup">
-            <input id="username" placeholder="Enter Purdue ID Name" style="padding:10px;">
-            <button class="boiler-btn" onclick="join()">Join Lobby</button>
+            <input id="username" placeholder="Enter Purdue ID Name">
+            <button class="gold-btn" onclick="join()">Enter Lobby</button>
         </div>
 
         <div id="lobby" style="display:none">
-            <h3>Students in Lobby:</h3>
-            <ul id="playerList" style="list-style:none; padding:0;"></ul>
-            <button class="boiler-btn" onclick="startGame()">START GAME</button>
+            <h3>Students Ready:</h3>
+            <ul id="playerList" style="list-style:none; padding:0; color: var(--purdue-gold);"></ul>
+            <button class="gold-btn" onclick="startGame()">START SEMESTER</button>
         </div>
 
         <div id="gameUI" style="display:none">
-            <h2 id="roleSecret">Role is Hidden</h2>
-            <button class="boiler-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">
+            <div class="score-box">
+                <div>Traditions: <br><b id="tScore" style="color:var(--purdue-gold)">0</b></div>
+                <div>Construction: <br><b id="cScore" style="color:red">0</b></div>
+            </div>
+            
+            <p id="roleSecret">Role is Hidden</p>
+            <button class="gold-btn" onmousedown="reveal()" onmouseup="hide()" ontouchstart="reveal()" ontouchend="hide()">
                 HOLD TO REVEAL ROLE
             </button>
-            <hr>
-            <h3>Nominate for President:</h3>
-            <input id="nominee" placeholder="Player Name">
-            <button onclick="sendNomination()">Call Vote</button>
+
+            <hr style="border: 0.5px solid #555; margin: 20px 0;">
+            
+            <div id="actionArea">
+                <input id="nominee" placeholder="Nominate President">
+                <button class="gold-btn" onclick="sendNomination()">Call for Vote</button>
+                <button style="background:#555; color:white;" onclick="drawCards()">Draw Policies</button>
+            </div>
+
+            <div id="policyArea" style="display:none;">
+                <h4>Pick a Policy to Enact:</h4>
+                <div id="policyButtons"></div>
+            </div>
         </div>
 
-        <div id="voteUI" style="display:none; border: 2px solid black; margin-top: 20px; padding: 10px;">
-            <h3 id="voteTitle"></h3>
-            <button class="boiler-btn" onclick="castVote('Boiler Up!')">Boiler Up (Yes)</button>
-            <button class="hammer-btn" onclick="castVote('Hammer Down!')">Hammer Down (No)</button>
+        <div id="voteUI" style="display:none; background:rgba(0,0,0,0.9); position:fixed; top:0; left:0; width:100%; height:100%; padding-top:100px;">
+            <h2 id="voteTitle"></h2>
+            <button class="gold-btn" onclick="castVote('Boiler Up!')">BOILER UP (Yes)</button>
+            <button style="background:red; color:white;" onclick="castVote('Hammer Down!')">HAMMER DOWN (No)</button>
         </div>
-
-        <div id="results"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let myName = "";
-        let myRole = "";
+        let myName = "", myRole = "";
 
         function join() {
             myName = document.getElementById('username').value;
-            if(!myName) return alert("Enter a name!");
+            if(!myName) return;
             socket.emit('joinGame', myName);
             document.getElementById('setup').style.display = 'none';
             document.getElementById('lobby').style.display = 'block';
@@ -65,9 +80,8 @@
 
         function startGame() { socket.emit('startGame'); }
 
-        socket.on('updatePlayerList', (players) => {
-            const list = document.getElementById('playerList');
-            list.innerHTML = players.map(p => `<li>✅ ${p.name}</li>`).join('');
+        socket.on('updatePlayerList', (p) => {
+            document.getElementById('playerList').innerHTML = p.map(player => `<li>🚂 ${player.name}</li>`).join('');
         });
 
         socket.on('assignRole', (role) => {
@@ -76,29 +90,44 @@
             document.getElementById('gameUI').style.display = 'block';
         });
 
-        // REVEAL LOGIC
         function reveal() { document.getElementById('roleSecret').innerText = myRole; }
         function hide() { document.getElementById('roleSecret').innerText = "Role is Hidden"; }
 
-        // VOTING LOGIC
         function sendNomination() {
-            const name = document.getElementById('nominee').value;
-            socket.emit('startVote', name);
+            const n = document.getElementById('nominee').value;
+            if(n) socket.emit('startVote', n);
         }
 
         socket.on('showVote', (name) => {
-            document.getElementById('voteTitle').innerText = "Elect " + name + " as President?";
+            document.getElementById('voteTitle').innerText = "Elect " + name + "?";
             document.getElementById('voteUI').style.display = 'block';
         });
 
-        function castVote(choice) {
-            socket.emit('submitVote', { name: myName, choice: choice });
+        function castVote(c) {
+            socket.emit('submitVote', { name: myName, choice: c });
             document.getElementById('voteUI').style.display = 'none';
         }
 
-        socket.on('voteResult', (data) => {
-            const res = document.getElementById('results');
-            res.innerHTML += `<p><strong>${data.name}</strong> voted: ${data.choice}</p>`;
+        socket.on('voteResult', (d) => {
+            alert(d.name + " voted " + d.choice);
+        });
+
+        function drawCards() { socket.emit('drawPolicies'); }
+
+        socket.on('policyHand', (hand) => {
+            document.getElementById('policyArea').style.display = 'block';
+            document.getElementById('policyButtons').innerHTML = hand.map(p => 
+                `<div class="policy-card" onclick="enact('${p}')">${p}</div>`).join('');
+        });
+
+        function enact(p) {
+            socket.emit('enactPolicy', p);
+            document.getElementById('policyArea').style.display = 'none';
+        }
+
+        socket.on('policyUpdated', (data) => {
+            document.getElementById('tScore').innerText = data.traditionScore;
+            document.getElementById('cScore').innerText = data.constructionScore;
         });
     </script>
 </body>
